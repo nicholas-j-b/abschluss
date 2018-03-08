@@ -10,7 +10,8 @@ data <- files[grep(".RData", files)]
 load(data) -> laser
 
 #read data
-titles <- c("rank", "shots", "accuracy", "powers", "score") #  "player", "team",
+titles <- c("rank", "shots", "accuracy", "powers", "score")
+titles2 <- c("player", "team")
 files <- files[grepl("Laser_[0-9]+.*\\.txt", files)]
 nums <- list() #list of player numbers
 names <- list() #corresponding list of player names
@@ -85,6 +86,7 @@ all(hit.you.rel >= 0, na.rm = TRUE)
 
 #add you.hit and hit.you to dataframe
 struct.frame <- cbind(struct.frame, you.hit = rowSums(you.hit, na.rm = TRUE), hit.you = rowSums(hit.you, na.rm = TRUE))
+struct.frame$accuracy2 <-  struct.frame$you.hit / struct.frame$shots
 
 #############################################################################
 #3
@@ -147,7 +149,7 @@ for (i in vars){
 #############################################################################
 #5
 
-simulate <- function(time = 15, info.frame, hits){
+simulate <- function(time = 15, info.frame, hits, score.co){
   rate <- hits / 15
   temp.bool <- is.na(rate)
   rate[temp.bool] <- 0
@@ -162,14 +164,43 @@ simulate <- function(time = 15, info.frame, hits){
   sim.tab2 <- get.tab(sim.hit.you, struct.frame)
 
   sim.co.matrix <- abcd(sim.info, sim.tab, sim.tab2)
-  sim.info <- cbind(sim.info, sim.co.matrix)
+  score <- sim.co.matrix %*% score.co
+  
+  sim.info <- cbind(sim.info, sim.co.matrix, score)
+  sim.info$shots <- floor(rowSums(sim.you.hit, na.rm = TRUE) / info.frame$accuracy2)
+  sim.info$rank <- length(info.frame$team) - rank(sim.info$score) + 1
+  sim.info$powers <- 0
+  sim.info$accuracy <- 0
+  sim.info$youhit <- rowSums(sim.you.hit, na.rm = TRUE)
+  sim.info$hityou <- rowSums(sim.hit.you, na.rm = TRUE)
   
   list(sim.hit.you = sim.hit.you, sim.you.hit = sim.you.hit, sim.info = sim.info)
-
 }
 
 
-simulate(time = 60 * 24, info.frame = struct.frame, hits = you_hit)
+sim <- simulate(time = 60 * 24, info.frame = struct.frame, hits = you_hit, score.co = betas)
+
+#############################################################################
+#6
+
+titles3 <- c("team", "rank", "score", "shots", "accuracy", "youhit", "hityou", "powers")
+
+write.laser <- function(info){
+  name <- paste0("sim_", info$rank, "_", info$player, ".txt")
+  
+  sink(file = name)
+  cat("<head>\n")
+  for(i in titles3){
+    cat(paste("  <", i, ">", info[i], "</", i, ">\n", collapse = "", sep = ""))
+  }
+  cat("</head>\n<body>\nplayer;you_hit;hit_you\n")
+  for(i in length())
+  sink(file = NULL)
+}
+
+for(i in 1:length(struct.frame$team)){
+  write.laser(sim$sim.info[i, ])
+}
 
 
 
