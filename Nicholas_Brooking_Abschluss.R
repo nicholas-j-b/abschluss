@@ -89,26 +89,36 @@ struct.frame <- cbind(struct.frame, you.hit = rowSums(you.hit, na.rm = TRUE), hi
 #############################################################################
 #3
 
-tab <- apply(you.hit, 1, FUN = function(x) tapply(x, INDEX = struct.frame$team, FUN = sum, na.rm = TRUE))
-tab2 <- apply(hit.you, 1, FUN = function(x) tapply(x, INDEX = struct.frame$team, FUN = sum, na.rm = TRUE))
-
-a.n <- b.n <- c.n <- d.n <- numeric(0)
-for (i in 1:length(struct.frame$team)){
-  b.n <- c(b.n, tab[struct.frame$team[[i]], i])
-  a.n <- c(a.n, sum(tab[, i]) - b.n[i])
-  d.n <- c(d.n, tab2[struct.frame$team[[i]], i])
-  c.n <- c(c.n, sum(tab2[, i]) - d.n[i])
+get.tab <- function(hits, frame){
+  apply(hits, 1, FUN = function(x) tapply(x, INDEX = frame$team, FUN = sum, na.rm = TRUE))
 }
+tab <- get.tab(you.hit, struct.frame)
+tab2 <- get.tab(hit.you, struct.frame)
+
+
+abcd <- function(frame, tab, tab2){
+  a <- b <- c <- d <- numeric(0)
+  for (i in 1:length(frame$team)){
+    b <- c(b, tab[frame$team[[i]], i])
+    a <- c(a, sum(tab[, i]) - b[i])
+    d <- c(d, tab2[frame$team[[i]], i])
+    c <- c(c, sum(tab2[, i]) - d[i])
+  }
+  mat <- cbind(a, b, c, d)
+  rownames(mat) <- frame$player
+  return(mat)
+}
+co.matrix <- abcd(struct.frame, tab, tab2)
 y.n <- struct.frame$score - struct.frame$accuracy - struct.frame$powers
 
 #linear modell
-betas <- solve(cbind(a.n, b.n, c.n, d.n)[1:4, ], y.n[1:4])
-all(betas[1] * a.n + betas[2] * b.n + betas[3] * c.n + betas[4] * d.n == y.n)
+betas <- solve(co.matrix[1:4, ], y.n[1:4])
+all(co.matrix %*% betas == y.n)
 
 #regression
-model <- lm(y ~ -1 + a.n + b.n + c.n + d.n)
+model <- lm(y.n ~ -1 + co.matrix)
 gammas <- round(model$coefficients, digits = 10) #rid floating point error
-all(gammas[1] * a.n + gammas[2] * b.n + gammas[3] * c.n + gammas[4] * d.n == y.n)
+all(co.matrix %*% gammas == y.n)
 
 #############################################################################
 #4
@@ -139,14 +149,27 @@ for (i in vars){
 
 simulate <- function(time = 15, info.frame, hits){
   rate <- hits / 15
-  rate[is.na(rate)] <- 0
-  apply(rate, 2, FUN = function(x) rpois(length(x), time * x))
+  temp.bool <- is.na(rate)
+  rate[temp.bool] <- 0
+  sim.you.hit <- apply(rate, 2, FUN = function(x) rpois(length(x), time * x))
+  sim.you.hit[temp.bool] <- NA
+  sim.hit.you <- t(sim.you.hit)
+  
+  sim.info <- data.frame(team = info.frame$team, player = info.frame$player)
+  rownames(sim.info) <- info.frame$player
 
+  sim.tab <- get.tab(sim.you.hit, struct.frame)
+  sim.tab2 <- get.tab(sim.hit.you, struct.frame)
+
+  sim.co.matrix <- abcd(sim.info, sim.tab, sim.tab2)
+  sim.info <- cbind(sim.info, sim.co.matrix)
+  
+  list(sim.hit.you = sim.hit.you, sim.you.hit = sim.you.hit, sim.info = sim.info)
 
 }
 
 
-simulate(info.frame = info, hits = you_hit)
+simulate(time = 60 * 24, info.frame = struct.frame, hits = you_hit)
 
 
 
