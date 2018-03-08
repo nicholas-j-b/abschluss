@@ -113,7 +113,7 @@ all(gammas[1] * a.n + gammas[2] * b.n + gammas[3] * c.n + gammas[4] * d.n == y.n
 #############################################################################
 #4
 
-f <- colorRampPalette(c("tan1", "slateblue"))
+f <- colorRampPalette(c("coral4", "tan1"))
 vars <- c("score", "shots", "accuracy", "you.hit", "hit.you") 
 
 #a function that draws a bar graph splitted by teams
@@ -124,13 +124,13 @@ plot.balk <- function(variable = "score", by = "team", breaks = 5, palette = NUL
           main = c("Comparing", variable, "for each team"), ylim = c(0, max(table(struct.frame$team)) * 1.35), 
           ylab = "Players")
   if(leg == TRUE){
-    legend("topright", legend = c("best", rep("", times = breaks - 2), "worst"), pch = 15, col = rev(cols))
+    legend("topright", legend = c("best group", rep("", times = breaks - 2), "worst group"), pch = 15, col = rev(cols))
   }
 }
 
 #leg = FALSE for no legend
 for (i in vars){
-  #dev.new()
+  dev.new()
   plot.balk(i, palette = f)
 }
 
