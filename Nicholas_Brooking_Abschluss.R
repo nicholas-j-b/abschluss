@@ -10,9 +10,14 @@ data <- files[grep(".RData", files)]
 load(data) -> laser
 
 #read data
+SIM <- FALSE
 titles <- c("rank", "shots", "accuracy", "powers", "score")
 titles2 <- c("player", "team")
-files <- files[grepl("Laser_[0-9]+.*\\.txt", files)]
+if(SIM == FALSE){
+  files <- files[grepl("Laser_[0-9]+.*\\.txt", files)]
+} else {
+  files <- files[grepl("sim_[0-9]+.*\\.txt", files)]
+}
 nums <- list() #list of player numbers
 names <- list() #corresponding list of player names
 data <- list() #corresponding data
@@ -50,7 +55,7 @@ names(splitted) <- struct$player
 splitted <- splitted[sort(names(splitted))]
 split.order <- order(sapply(splitted[[1]], function(y) y[[1]]))
 
-#############################################################################
+s#############################################################################
 #2
 
 #create data frame
@@ -141,10 +146,10 @@ plot.balk <- function(variable = "score", by = "team", breaks = 5, palette = NUL
 }
 
 #leg = FALSE for no legend
-for (i in vars){
-  dev.new()
-  plot.balk(i, palette = f)
-}
+# for (i in vars){
+#   dev.new()
+#   plot.balk(i, palette = f)
+# }
 
 #############################################################################
 #5
@@ -156,8 +161,10 @@ simulate <- function(time = 15, info.frame, hits, score.co){
   sim.you.hit <- apply(rate, 2, FUN = function(x) rpois(length(x), time * x))
   sim.you.hit[temp.bool] <- NA
   sim.hit.you <- t(sim.you.hit)
+  rownames(sim.you.hit) <- info.frame$player
+  rownames(sim.hit.you) <- info.frame$player
   
-  sim.info <- data.frame(team = info.frame$team, player = info.frame$player)
+  sim.info <- data.frame(team = as.character(info.frame$team), player = info.frame$player, stringsAsFactors = FALSE)
   rownames(sim.info) <- info.frame$player
 
   sim.tab <- get.tab(sim.you.hit, struct.frame)
@@ -185,7 +192,7 @@ sim <- simulate(time = 60 * 24, info.frame = struct.frame, hits = you_hit, score
 
 titles3 <- c("team", "rank", "score", "shots", "accuracy", "youhit", "hityou", "powers")
 
-write.laser <- function(info){
+write.laser <- function(info, hits){
   name <- paste0("sim_", info$rank, "_", info$player, ".txt")
   
   sink(file = name)
@@ -194,12 +201,14 @@ write.laser <- function(info){
     cat(paste("  <", i, ">", info[i], "</", i, ">\n", collapse = "", sep = ""))
   }
   cat("</head>\n<body>\nplayer;you_hit;hit_you\n")
-  for(i in length())
+  cat(paste(colnames(hits), hits[info$player, ], hits[ , info$player], sep = ";", collapse = "\n"))
+  cat("\n</body>")
+  
   sink(file = NULL)
 }
 
 for(i in 1:length(struct.frame$team)){
-  write.laser(sim$sim.info[i, ])
+  write.laser(sim$sim.info[i, ], sim$sim.you.hit)
 }
 
 
