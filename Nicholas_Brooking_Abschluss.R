@@ -255,3 +255,6 @@ if(SIM == FALSE){
     write.laser(sim$sim.info[i, ], sim$sim.you.hit)
   }
 }
+
+# created folder 'data2' with laser data for 3+ teams
+# code runs smoothly even with unevenly sized teams
