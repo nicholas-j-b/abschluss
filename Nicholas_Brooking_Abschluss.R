@@ -1,5 +1,11 @@
+# A short program written by Nicholas Brooking for the purpose of submitting
+# to the University of Vienna for the course 'Statistisches Programmieren'.
+
 #############################################################################
 #1
+#true when loading simulated answers
+#run with false for initial iteration, then true for second
+SIM <- FALSE
 
 #load data
 setwd("~/r-ws/abschluss/data/")
@@ -10,7 +16,6 @@ data <- files[grep(".RData", files)]
 load(data) -> laser
 
 #read data
-SIM <- FALSE
 titles <- c("rank", "shots", "accuracy", "powers", "score")
 titles2 <- c("player", "team")
 if(SIM == FALSE){
@@ -50,12 +55,13 @@ for (h in 1:length(data)){
   struct$player <- c(struct$player, as.character(names[h]))
   struct$team <- c(struct$team, as.character(data.vals[data.names == "team"]))
 }
+
 #alphabetise and name data
 names(splitted) <- struct$player
 splitted <- splitted[sort(names(splitted))]
 split.order <- order(sapply(splitted[[1]], function(y) y[[1]]))
 
-s#############################################################################
+#############################################################################
 #2
 
 #create data frame
@@ -96,13 +102,19 @@ struct.frame$accuracy2 <-  struct.frame$you.hit / struct.frame$shots
 #############################################################################
 #3
 
+#function for providing contigency table
+#hits - you.hit style matrix
+#frame - data frame with relevant data
 get.tab <- function(hits, frame){
   apply(hits, 1, FUN = function(x) tapply(x, INDEX = frame$team, FUN = sum, na.rm = TRUE))
 }
 tab <- get.tab(you.hit, struct.frame)
 tab2 <- get.tab(hit.you, struct.frame)
 
-
+#function for calculating coefficients
+#frame - data frame with relevant data
+#tab - contingency table for you.hit data
+#tab2 - contigency table for hit.you data
 abcd <- function(frame, tab, tab2){
   a <- b <- c <- d <- numeric(0)
   for (i in 1:length(frame$team)){
@@ -115,6 +127,8 @@ abcd <- function(frame, tab, tab2){
   rownames(mat) <- frame$player
   return(mat)
 }
+
+#calculate coefficients and test
 co.matrix <- abcd(struct.frame, tab, tab2)
 y.n <- struct.frame$score - struct.frame$accuracy - struct.frame$powers
 
@@ -130,10 +144,21 @@ all(co.matrix %*% gammas == y.n)
 #############################################################################
 #4
 
+#set colour palatte
 f <- colorRampPalette(c("coral4", "tan1"))
 vars <- c("score", "shots", "accuracy", "you.hit", "hit.you") 
 
-#a function that draws a bar graph splitted by teams
+#simulated results have no bonus accuracy statistic
+if(SIM == TRUE){
+  vars <- vars[!(vars == "accuracy")]
+}
+
+#a function that draws a bar graph split by teams
+#variable - vector - variable with which to compare
+#by - split data into groups to compare
+#breaks - number of breaks in histogram
+#palette - colour palette
+#leg - logical - is there a legend?
 plot.balk <- function(variable = "score", by = "team", breaks = 5, palette = NULL, leg = TRUE){
   cols <- palette(breaks)
   barplot(sapply(tapply(struct.frame[[variable]], struct.frame[[by]], 
@@ -146,15 +171,21 @@ plot.balk <- function(variable = "score", by = "team", breaks = 5, palette = NUL
 }
 
 #leg = FALSE for no legend
-# for (i in vars){
-#   dev.new()
-#   plot.balk(i, palette = f)
-# }
+for (i in vars){
+  dev.new()
+  plot.balk(i, palette = f)
+}
 
 #############################################################################
 #5
 
+#a function that simulates a game of laser tag
+#time - length of game in minutes
+#info.frame - dataframe with information upon which to base the simulation
+#score.co - coefficients for calculating the score
 simulate <- function(time = 15, info.frame, hits, score.co){
+  
+  #calculate hit rate, remove NAs for poisson calculation then place back in
   rate <- hits / 15
   temp.bool <- is.na(rate)
   rate[temp.bool] <- 0
@@ -164,15 +195,18 @@ simulate <- function(time = 15, info.frame, hits, score.co){
   rownames(sim.you.hit) <- info.frame$player
   rownames(sim.hit.you) <- info.frame$player
   
+  #data fram to be returned
   sim.info <- data.frame(team = as.character(info.frame$team), player = info.frame$player, stringsAsFactors = FALSE)
   rownames(sim.info) <- info.frame$player
 
   sim.tab <- get.tab(sim.you.hit, struct.frame)
   sim.tab2 <- get.tab(sim.hit.you, struct.frame)
 
+  #calculating score
   sim.co.matrix <- abcd(sim.info, sim.tab, sim.tab2)
   score <- sim.co.matrix %*% score.co
   
+  #prepare return value, list with two matricies and a dataframe
   sim.info <- cbind(sim.info, sim.co.matrix, score)
   sim.info$shots <- floor(rowSums(sim.you.hit, na.rm = TRUE) / info.frame$accuracy2)
   sim.info$rank <- length(info.frame$team) - rank(sim.info$score) + 1
@@ -184,54 +218,40 @@ simulate <- function(time = 15, info.frame, hits, score.co){
   list(sim.hit.you = sim.hit.you, sim.you.hit = sim.you.hit, sim.info = sim.info)
 }
 
-
+#simulate a 24hr game
 sim <- simulate(time = 60 * 24, info.frame = struct.frame, hits = you_hit, score.co = betas)
 
 #############################################################################
 #6
 
-titles3 <- c("team", "rank", "score", "shots", "accuracy", "youhit", "hityou", "powers")
-
-write.laser <- function(info, hits){
-  name <- paste0("sim_", info$rank, "_", info$player, ".txt")
+#to save overwriting data, only write to disk in non-sim mode
+if(SIM == FALSE){
+  #set titles for text file
+  titles3 <- c("team", "rank", "score", "shots", "accuracy", "youhit", "hityou", "powers")
   
-  sink(file = name)
-  cat("<head>\n")
-  for(i in titles3){
-    cat(paste("  <", i, ">", info[i], "</", i, ">\n", collapse = "", sep = ""))
+  #function to write .txt files
+  #info - data frame with simulated (or real) data
+  #hits - matrix of you.hit style data
+  write.laser <- function(info, hits){
+    #prepare file name
+    name <- paste0("sim_", info$rank, "_", info$player, ".txt")
+    
+    #open sink and write file
+    sink(file = name)
+    cat("<head>\n")
+    for(i in titles3){
+      cat(paste("  <", i, ">", info[i], "</", i, ">\n", collapse = "", sep = ""))
+    }
+    cat("</head>\n<body>\nplayer;you_hit;hit_you\n")
+    cat(paste(colnames(hits), hits[info$player, ], hits[ , info$player], sep = ";", collapse = "\n"))
+    cat("\n</body>")
+    
+    #close sink
+    sink(file = NULL)
   }
-  cat("</head>\n<body>\nplayer;you_hit;hit_you\n")
-  cat(paste(colnames(hits), hits[info$player, ], hits[ , info$player], sep = ";", collapse = "\n"))
-  cat("\n</body>")
   
-  sink(file = NULL)
+  #write simulated data into memory
+  for(i in 1:length(struct.frame$team)){
+    write.laser(sim$sim.info[i, ], sim$sim.you.hit)
+  }
 }
-
-for(i in 1:length(struct.frame$team)){
-  write.laser(sim$sim.info[i, ], sim$sim.you.hit)
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
-  
